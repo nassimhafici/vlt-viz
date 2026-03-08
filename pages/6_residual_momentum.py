@@ -53,7 +53,33 @@ COLORS = ["#2563eb", "#d97706", "#059669", "#dc2626", "#7c3aed",
 # ══════════════════════════════════════════════════════════════════
 # CORE FUNCTIONS
 # ══════════════════════════════════════════════════════════════════
+def build_svix_series(svix_px, shortvol_px):
+    """
+    Backfill SVIX price history using ^SHORTVOL returns.
+    """
 
+    svix_px = svix_px.sort_index()
+    shortvol_px = shortvol_px.sort_index()
+
+    proxy_ret = shortvol_px.pct_change()
+
+    first_svix = svix_px.first_valid_index()
+
+    if first_svix is None:
+        return shortvol_px.copy()
+
+    start_price = svix_px.loc[first_svix]
+
+    proxy_back = proxy_ret.loc[:first_svix].iloc[:-1]
+
+    if proxy_back.empty:
+        return svix_px
+
+    synthetic = start_price / (1 + proxy_back[::-1]).cumprod()[::-1]
+
+    svix_full = synthetic.combine_first(svix_px)
+
+    return svix_full
 def compute_ff_factors(ff_prices):
     """Compute Fama-French 3-factor proxies from ETF monthly prices."""
     monthly = ff_prices.resample("ME").last()
@@ -273,10 +299,12 @@ def load_all_data():
 
     # Extend SVIX with SHORTVOL proxy for pre-ETF history
     vix_df = px[vix_cols].copy()
+
     if "SVIX" in vix_df.columns and "^SHORTVOL" in vix_df.columns:
-        svix_raw = vix_df["SVIX"].dropna()
-        shortvol_raw = vix_df["^SHORTVOL"].dropna()
-        vix_df["SVIX"] = _proxy_series_backward(svix_raw, shortvol_raw)
+        vix_df["SVIX"] = build_svix_series(
+            vix_df["SVIX"],
+            vix_df["^SHORTVOL"]
+        )
 
     return px[etf_cols], px[ff_cols], vix_df, assets, etf_cols
 
@@ -366,20 +394,45 @@ with st.spinner("Computing residual momentum pipeline..."):
     # 8. SVIX carry signal
     vix_spot = vix_px.get("^VIX", pd.Series(dtype=float))
     vix3m = vix_px.get("^VIX3M", pd.Series(dtype=float))
-    svix_px = vix_px.get("SVIX", pd.Series(dtype=float))
-    if not svix_px.empty and not vix_spot.empty and not vix3m.empty:
+    svix_price = vix_px.get("SVIX", pd.Series(dtype=float))
+
+    if not svix_price.empty and not vix_spot.empty and not vix3m.empty:
+
+        # term structure signal
         svix_signal = (vix_spot < vix3m).astype(int)
-        svix_daily_ret = (svix_signal.shift(1) * svix_px.pct_change()).fillna(0)
-        # Resample to monthly for combination
-        svix_monthly = svix_daily_ret.resample("ME").apply(lambda x: (1 + x).prod() - 1)
+
+        # SVIX returns (from synthetic price)
+        svix_returns = svix_price.pct_change()
+
+        # apply signal daily
+        svix_strategy = (svix_signal.shift(1) * svix_returns).fillna(0)
+
+        # aggregate monthly
+        svix_monthly = svix_strategy.resample("ME").apply(
+            lambda x: (1 + x).prod() - 1
+        )
+
     else:
         svix_monthly = pd.Series(dtype=float)
 
     # 9. Combine strategies
-    combined = pd.concat([mom_returns.rename("MOM"), svix_monthly.rename("SVIX")],
-                         axis=1).dropna()
+    combined = pd.concat(
+        [
+            mom_returns.rename("MOM"),
+            svix_monthly.rename("SVIX")
+        ],
+        axis=1
+    )
+
+    combined["MOM"] = combined["MOM"].fillna(0)
+    combined["SVIX"] = combined["SVIX"].fillna(0)
+
     combined = combined.loc[str(start_date):]
-    combined["COMBINED"] = combined["MOM"] * w_momentum + combined["SVIX"] * w_svix
+
+    combined["COMBINED"] = (
+            combined["MOM"] * w_momentum +
+            combined["SVIX"] * w_svix
+    )
 
     # 10. Benchmark
     spy_px = ff_px.get("SPY", pd.Series(dtype=float))
