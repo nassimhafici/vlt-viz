@@ -28,50 +28,6 @@ html, body, [class*="css"], .stApp {
 [data-testid="stSidebar"] {
   background-color: #ffffff !important;
   border-right: 1px solid #e5e7eb !important;
-  padding-top: 24px;
-  box-shadow: 1px 0 0 #e5e7eb;
-}
-[data-testid="stSidebar"] section { padding: 0 18px; }
-
-[data-testid="stSidebarNav"] { padding: 0 0 12px 0; }
-[data-testid="stSidebarNav"] a {
-  display: block;
-  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  font-size: 11.5px;
-  font-weight: 500;
-  color: #6b7280 !important;
-  letter-spacing: 0.02em;
-  padding: 8px 16px;
-  border-left: 2px solid transparent;
-  text-decoration: none !important;
-  transition: color 0.15s;
-  border-radius: 0 4px 4px 0;
-  margin-bottom: 2px;
-}
-[data-testid="stSidebarNav"] a:hover {
-  color: #111827 !important;
-  background: #f3f4f6;
-}
-[data-testid="stSidebarNav"] a[aria-current="page"] {
-  color: #2563eb !important;
-  border-left-color: #2563eb;
-  background: #eff6ff;
-  font-weight: 600;
-}
-
-/* ── Sidebar toggle — always visible ── */
-[data-testid="collapsedControl"],
-[data-testid="stSidebarCollapsedControl"] {
-  display: flex !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-  pointer-events: auto !important;
-}
-[data-testid="stSidebarCollapseButton"],
-[data-testid="stSidebarCollapsedControl"] button {
-  opacity: 1 !important;
-  visibility: visible !important;
-  pointer-events: auto !important;
 }
 
 /* ── Headings ── */
@@ -274,19 +230,15 @@ hr {
   font-size: 12px !important;
 }
 
-#MainMenu, footer, header { visibility: hidden; }
-[data-testid="stDecoration"], [data-testid="stToolbar"] { display: none; }
 """
 
 st.markdown(f"<style>{_CSS}</style>", unsafe_allow_html=True)
 
 pg = st.navigation([
-    st.Page("pages/1_market_overview.py", title="Overview"),
-    st.Page("pages/2_asset_explorer.py",  title="Explorer"),
-    st.Page("pages/3_heatmap.py",         title="Heatmap"),
-    st.Page("pages/4_compare.py",         title="Compare"),
-    st.Page("pages/5_rates.py",           title="Rates"),
-    st.Page("pages/6_indices.py",         title="Indices & Vol"),
-    st.Page("pages/7_short_vol.py",       title="Short Vol"),
+    st.Page("pages/1_market_overview.py", title="OVERVIEW"),
+    st.Page("pages/2_asset_explorer.py",  title="EXPLORER"),
+    st.Page("pages/3_compare.py",         title="COMPARE"),
+    st.Page("pages/4_rates.py",           title="RATES"),
+    st.Page("pages/5_shortvol.py",       title="SHORTVOL"),
 ])
 pg.run()
