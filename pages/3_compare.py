@@ -95,7 +95,7 @@ investable = assets[
 # ══════════════════════════════════════════════════════════════════
 with st.sidebar:
     group_name = st.selectbox("Universe", list(UNIVERSE_CATALOG.keys()))
-    corr_freq  = st.selectbox("Correlation frequency", ["1D","1W","1M"], index=0)
+    corr_freq  = st.selectbox("Correlation frequency", ["1D","1W","1M"], index=1)
     display_as = st.radio("Labels", ["Name","Ticker"], horizontal=True)
     st.markdown("<hr style='border-color:#e5e7eb;margin:12px 0'>", unsafe_allow_html=True)
     benchmark  = st.selectbox("Benchmark", ["None","SPY","QQQ","VT"], index=1)
@@ -331,7 +331,7 @@ st.dataframe(s_obj, use_container_width=True,
 
 # ── Returns heatmap ───────────────────────────────────────────────
 if not snap_df.empty:
-    _sec("period returns", top=24)
+    _sec("Returns by periods", top=24)
     snap_cols = {"r1d":"1D","r1w":"1W","r1m":"1M","r3m":"3M","rytd":"YTD","r1y":"1Y"}
     s_avail   = {k:v for k,v in snap_cols.items() if k in snap_df.columns}
     snap_show = snap_df.reindex(sorted_syms)[list(s_avail.keys())].rename(columns=s_avail)
@@ -368,7 +368,7 @@ with tab_corr:
     corr = ret_corr[active].corr()
     lbls = [lbl(s) for s in active]
 
-    _sec(f"correlation matrix — {corr_freq} returns · {period}")
+    _sec(f"Correlation matrix — {corr_freq} returns | {period}")
     fig_c = go.Figure(go.Heatmap(
         z=corr.values, x=lbls, y=lbls,
         colorscale=[[0,"#fef2f2"],[0.25,"#dc2626"],[0.5,"#f8fafc"],[0.75,"#2563eb"],[1,"#eff6ff"]],
@@ -401,8 +401,8 @@ with tab_corr:
         return f"color:{TEXT}"
 
     ca, cb = st.columns(2)
-    for col_w, df_p, ttl in [(ca, pf.nlargest(12,"ρ"),"most correlated"),
-                              (cb, pf.nsmallest(8,"ρ"), "most diverging")]:
+    for col_w, df_p, ttl in [(ca, pf.nlargest(12,"ρ"),f"Most correlated — {corr_freq} returns | {period}"),
+                              (cb, pf.nsmallest(8,"ρ"), f"Most diverging — {corr_freq} returns | {period}")]:
         col_w.markdown(f"<p style='font-family:{FONT};font-size:9px;color:{TEXT_DIM};"
                        f"text-transform:uppercase;letter-spacing:0.1em;margin:24px 0 8px'>{ttl}</p>",
                        unsafe_allow_html=True)
@@ -412,7 +412,7 @@ with tab_corr:
 
     avg_corr   = corr.apply(lambda r: r.drop(r.name).mean())
     avg_corr_s = avg_corr.sort_values(ascending=False)
-    _sec("average pairwise correlation")
+    _sec(f"Average pairwise correlation — {corr_freq} returns | {period}")
     fig_ac = go.Figure(go.Bar(
         x=[lbl(s) for s in avg_corr_s.index], y=avg_corr_s.values,
         marker=dict(color=avg_corr_s.values,
