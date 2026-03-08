@@ -31,9 +31,10 @@ if "ret_window" not in st.session_state:
 
 st.markdown("""
 <style>
-[data-testid="stButton"] > button {
-    height: 32px !important;
-    min-height: 32px !important;
+/* Period pills — scoped to .pill-btn class to avoid global conflicts */
+.pill-btn button {
+    height: 30px !important;
+    min-height: 30px !important;
     padding: 0 !important;
     width: 100% !important;
     border-radius: 6px !important;
@@ -46,14 +47,17 @@ st.markdown("""
     color: #9ca3af !important;
     box-shadow: none !important;
     transition: border-color 0.15s, color 0.15s !important;
+    cursor: pointer !important;
 }
-[data-testid="stButton"] > button:hover {
+.pill-btn button:hover {
     border-color: #2563eb !important;
     color: #2563eb !important;
     background: #eff6ff !important;
+    box-shadow: none !important;
 }
-[data-testid="stButton"] > button:focus {
-    box-shadow: none !important; outline: none !important;
+.pill-btn button:focus {
+    box-shadow: none !important;
+    outline: none !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -62,15 +66,18 @@ pill_cols = st.columns(len(WINDOWS), gap="small")
 for col, (key, label) in zip(pill_cols, WINDOWS):
     if key == st.session_state.ret_window:
         col.markdown(
-            f"<div style='height:32px;display:flex;align-items:center;justify-content:center;"
-            f"background:#2563eb;border-radius:6px;'>"
+            f"<div style='height:30px;display:flex;align-items:center;"
+            f"justify-content:center;background:#2563eb;border-radius:6px;'>"
             f"<span style='font-family:{FONT};font-size:11px;font-weight:700;"
             f"letter-spacing:0.08em;color:#fff'>{label}</span></div>",
             unsafe_allow_html=True)
     else:
-        if col.button(label, key=f"w_{key}"):
-            st.session_state.ret_window = key
-            st.rerun()
+        with col:
+            st.markdown("<div class='pill-btn'>", unsafe_allow_html=True)
+            if st.button(label, key=f"w_{key}"):
+                st.session_state.ret_window = key
+                st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
 
 ret_window = st.session_state.ret_window
 wlabel     = dict(WINDOWS)[ret_window]

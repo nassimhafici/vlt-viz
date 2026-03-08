@@ -1,7 +1,7 @@
 import streamlit as st
 
 st.set_page_config(
-    page_title="🚀VLT",
+    page_title="VLT",
     page_icon=None,
     layout="wide",
     initial_sidebar_state="expanded",
@@ -59,40 +59,19 @@ html, body, [class*="css"], .stApp {
   font-weight: 600;
 }
 
-/* ── Sidebar toggle — always visible when collapsed ── */
-[data-testid="collapsedControl"] {
+/* ── Sidebar toggle — always visible ── */
+[data-testid="collapsedControl"],
+[data-testid="stSidebarCollapsedControl"] {
   display: flex !important;
   visibility: visible !important;
   opacity: 1 !important;
-  position: fixed !important;
-  top: 14px !important;
-  left: 14px !important;
-  z-index: 9999 !important;
-  background: #ffffff !important;
-  border: 1px solid #e5e7eb !important;
-  border-radius: 6px !important;
-  width: 32px !important;
-  height: 32px !important;
-  align-items: center !important;
-  justify-content: center !important;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.08) !important;
-  cursor: pointer !important;
+  pointer-events: auto !important;
 }
-[data-testid="collapsedControl"] svg {
-  color: #6b7280 !important;
-  width: 16px !important;
-  height: 16px !important;
-}
-[data-testid="collapsedControl"]:hover {
-  border-color: #2563eb !important;
-  background: #eff6ff !important;
-}
-[data-testid="collapsedControl"]:hover svg {
-  color: #2563eb !important;
-}
-[data-testid="stSidebarCollapseButton"] {
+[data-testid="stSidebarCollapseButton"],
+[data-testid="stSidebarCollapsedControl"] button {
   opacity: 1 !important;
   visibility: visible !important;
+  pointer-events: auto !important;
 }
 
 /* ── Headings ── */
@@ -216,8 +195,9 @@ hr {
   color: #6b7280 !important;
 }
 
-/* ── Buttons ── */
-.stButton button, .stDownloadButton button {
+/* ── Generic buttons (sidebar only, not period pills) ── */
+[data-testid="stSidebar"] .stButton button,
+.stDownloadButton button {
   background: #ffffff !important;
   border: 1px solid #d1d5db !important;
   border-radius: 6px !important;
@@ -230,7 +210,8 @@ hr {
   height: auto !important;
   transition: all 0.15s;
 }
-.stButton button:hover, .stDownloadButton button:hover {
+[data-testid="stSidebar"] .stButton button:hover,
+.stDownloadButton button:hover {
   border-color: #2563eb !important;
   color: #2563eb !important;
   background: #eff6ff !important;
@@ -300,10 +281,12 @@ hr {
 st.markdown(f"<style>{_CSS}</style>", unsafe_allow_html=True)
 
 pg = st.navigation([
-    st.Page("pages/1_market_overview.py", title="OVERVIEW"),
-    st.Page("pages/2_asset_explorer.py",  title="EXPLORER"),
-    st.Page("pages/3_compare.py",         title="COMPARE"),
-    st.Page("pages/4_rates.py",           title="RATES"),
-    st.Page("pages/5_shortvol.py",       title="SHORTVOL"),
+    st.Page("pages/1_market_overview.py", title="Overview"),
+    st.Page("pages/2_asset_explorer.py",  title="Explorer"),
+    st.Page("pages/3_heatmap.py",         title="Heatmap"),
+    st.Page("pages/4_compare.py",         title="Compare"),
+    st.Page("pages/5_rates.py",           title="Rates"),
+    st.Page("pages/6_indices.py",         title="Indices & Vol"),
+    st.Page("pages/7_short_vol.py",       title="Short Vol"),
 ])
 pg.run()
