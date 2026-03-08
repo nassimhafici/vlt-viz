@@ -8,6 +8,7 @@ import plotly.graph_objects as go
 
 from core.db import load_assets, load_multi_prices, load_returns_snapshot
 from core.formatting import (
+    kpi_card,
     fmt_pct, FONT,
     GREEN, RED, BORDER, TEXT, TEXT_DIM, TEXT_MID, BG, BG2, BG3, GRAY, BLUE, YELLOW
 )
@@ -19,52 +20,17 @@ PERIODS = ["1M","3M","6M","1Y","2Y","3Y","5Y"]
 if "cmp_period" not in st.session_state:
     st.session_state.cmp_period = "1Y"
 
-st.markdown("""
-<style>
-.period-row div[data-testid="stButton"] > button {
-    height: 28px !important;
-    padding: 0 14px !important;
-    border-radius: 14px !important;
-    font-size: 11px !important;
-    font-weight: 600 !important;
-    letter-spacing: 0.06em !important;
-    border: 1.5px solid #e5e7eb !important;
-    background: #ffffff !important;
-    color: #9ca3af !important;
-    box-shadow: none !important;
-    line-height: 1 !important;
-    white-space: nowrap !important;
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif !important;
-    transition: all 0.1s !important;
-}
-.period-row div[data-testid="stButton"] > button:hover {
-    border-color: #2563eb !important;
-    color: #2563eb !important;
-    background: #eff6ff !important;
-}
-</style>
-""", unsafe_allow_html=True)
-
-st.markdown("<div class='period-row'>", unsafe_allow_html=True)
-_cols = st.columns([1.4] + [0.75]*len(PERIODS) + [8], gap="small")
-_cols[0].markdown(
-    f"<div style='height:28px;display:flex;align-items:center;"
-    f"font-family:{FONT};font-size:9px;font-weight:700;color:#9ca3af;"
-    f"letter-spacing:0.1em;text-transform:uppercase'>Period</div>",
-    unsafe_allow_html=True)
-for i, _p in enumerate(PERIODS):
-    if _p == st.session_state.cmp_period:
-        _cols[i+1].markdown(
-            f"<div style='height:28px;padding:0 14px;border-radius:14px;"
-            f"background:#2563eb;display:inline-flex;align-items:center;"
-            f"font-family:{FONT};font-size:11px;font-weight:700;"
-            f"letter-spacing:0.06em;color:#fff'>{_p}</div>",
-            unsafe_allow_html=True)
-    else:
-        if _cols[i+1].button(_p, key=f"cmp_{_p}"):
+_pcols = st.columns(len(PERIODS), gap="small")
+for _col, _p in zip(_pcols, PERIODS):
+    _active = (_p == st.session_state.cmp_period)
+    with _col:
+        if _active:
+            st.markdown("<div class='pill-active-wrap'>", unsafe_allow_html=True)
+        if st.button(_p, key=f"cmp_{_p}", use_container_width=True):
             st.session_state.cmp_period = _p
             st.rerun()
-st.markdown("</div>", unsafe_allow_html=True)
+        if _active:
+            st.markdown("</div>", unsafe_allow_html=True)
 
 period = st.session_state.cmp_period
 
@@ -266,22 +232,8 @@ def _sec(text, top=32):
         unsafe_allow_html=True)
 
 def _kpi(col, label, value, sub="", vc=TEXT):
-    if vc == GREEN:    bg, accent, tc = "#f0fdf4", "#16a34a", "#14532d"
-    elif vc == RED:    bg, accent, tc = "#fef2f2", "#dc2626", "#7f1d1d"
-    elif vc == YELLOW: bg, accent, tc = "#fffbeb", "#d97706", "#78350f"
-    else:              bg, accent, tc = "#f8fafc", "#64748b", "#1e293b"
-    col.markdown(
-        f"<div style='background:{bg};border-radius:10px;padding:14px 16px 12px;"
-        f"border-top:3px solid {accent}'>"
-        f"<div style='font-family:{FONT};font-size:8px;font-weight:700;"
-        f"letter-spacing:0.14em;text-transform:uppercase;color:{accent};"
-        f"margin-bottom:8px'>{label}</div>"
-        f"<div style='font-family:{FONT};font-size:20px;font-weight:300;"
-        f"color:{tc};line-height:1;letter-spacing:-0.01em'>{value}</div>"
-        f"<div style='font-family:{FONT};font-size:10px;color:{accent};"
-        f"opacity:0.7;margin-top:6px;white-space:nowrap;overflow:hidden;"
-        f"text-overflow:ellipsis'>{sub}</div>"
-        f"</div>", unsafe_allow_html=True)
+    _vc = "green" if vc == GREEN else "red" if vc == RED else "yellow" if vc == YELLOW else "neutral"
+    kpi_card(col, label, value, sub, _vc)
 
 _TS = [
     {"selector":"th","props":[

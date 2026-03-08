@@ -230,6 +230,61 @@ hr {
   font-size: 12px !important;
 }
 
+#MainMenu, footer { visibility: hidden; }
+[data-testid="stDecoration"], [data-testid="stToolbar"] { display: none; }
+
+/* ── Period pills — all real st.button, active gets ● prefix ── */
+div[data-testid="stHorizontalBlock"] .stButton button {
+  width: 100% !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  padding: 0 6px !important;
+  border-radius: 5px !important;
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.06em !important;
+  border: 1px solid #e5e7eb !important;
+  background: #ffffff !important;
+  color: #6b7280 !important;
+  box-shadow: none !important;
+  transition: all 0.12s !important;
+  cursor: pointer !important;
+  line-height: 1 !important;
+}
+div[data-testid="stHorizontalBlock"] .stButton button:hover {
+  border-color: #2563eb !important;
+  color: #2563eb !important;
+  background: #eff6ff !important;
+  box-shadow: none !important;
+}
+div[data-testid="stHorizontalBlock"] .stButton button:focus {
+  box-shadow: none !important; outline: none !important;
+}
+/* Active pill — button whose text starts with ● */
+div[data-testid="stHorizontalBlock"] .stButton button:has(div[data-testid="stMarkdownContainer"] p:first-child) {
+  /* fallback — overridden below */
+}
+div[data-testid="stHorizontalBlock"] .stButton button[kind="secondary"] p,
+div[data-testid="stHorizontalBlock"] .stButton button p {
+  margin: 0 !important; padding: 0 !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.06em !important;
+}
+/* Active: we inject data-active via a wrapper div */
+div.pill-active-wrap .stButton button {
+  background: #2563eb !important;
+  border-color: #2563eb !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+}
+div.pill-active-wrap .stButton button:hover {
+  background: #1d4ed8 !important;
+  border-color: #1d4ed8 !important;
+  color: #ffffff !important;
+}
+
 """
 
 st.markdown(f"<style>{_CSS}</style>", unsafe_allow_html=True)
@@ -239,6 +294,6 @@ pg = st.navigation([
     st.Page("pages/2_asset_explorer.py",  title="EXPLORER"),
     st.Page("pages/3_compare.py",         title="COMPARE"),
     st.Page("pages/4_rates.py",           title="RATES"),
-    st.Page("pages/5_shortvol.py",       title="SHORTVOL"),
+    st.Page("pages/5_shortvol.py",        title="SHORTVOL"),
 ])
 pg.run()

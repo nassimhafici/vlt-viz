@@ -77,7 +77,7 @@ def _table_styles():
             ("background", BG3),
             ("color", TEXT_DIM),
             ("font-family", FONT),
-            ("font-size", "10px"),
+            ("font-size", "9px"),
             ("font-weight", "600"),
             ("text-transform", "uppercase"),
             ("letter-spacing", "0.06em"),
@@ -158,3 +158,59 @@ def apply_category_filter(df: "pd.DataFrame", key: str = "cat_filter") -> "pd.Da
         return df
     raw_cat = _cat_map.get(sel, sel)
     return df[df["category"] == raw_cat].copy()
+
+
+# ─────────────────────────────────────────────────────────────────
+# Unified KPI card — use this on every page
+# ─────────────────────────────────────────────────────────────────
+def kpi_card(col, label: str, value: str, sub: str = "", vc: str = "neutral"):
+    """
+    Render a styled KPI card into a Streamlit column.
+    vc: "green" | "red" | "yellow" | "neutral"
+    """
+    import streamlit as _st
+    themes = {
+        "green":   ("#f0fdf4", "#16a34a", "#14532d"),
+        "red":     ("#fef2f2", "#dc2626", "#7f1d1d"),
+        "yellow":  ("#fffbeb", "#d97706", "#78350f"),
+        "neutral": ("#f8fafc", "#64748b", "#1e293b"),
+    }
+    bg, accent, tc = themes.get(vc, themes["neutral"])
+    col.markdown(
+        f"<div style='"
+        f"background:{bg};"
+        f"border-radius:8px;"
+        f"padding:12px 14px 10px 14px;"
+        f"border-top:2px solid {accent};"
+        f"min-height:72px;"
+        f"box-sizing:border-box'>"
+        f"<div style='"
+        f"font-family:{FONT};"
+        f"font-size:9px;"
+        f"font-weight:700;"
+        f"letter-spacing:0.12em;"
+        f"text-transform:uppercase;"
+        f"color:{accent};"
+        f"margin-bottom:6px;"
+        f"white-space:nowrap;"
+        f"overflow:hidden;"
+        f"text-overflow:ellipsis'>{label}</div>"
+        f"<div style='"
+        f"font-family:{FONT};"
+        f"font-size:18px;"
+        f"font-weight:300;"
+        f"color:{tc};"
+        f"line-height:1;"
+        f"letter-spacing:-0.01em'>{value}</div>"
+        f"<div style='"
+        f"font-family:{FONT};"
+        f"font-size:10px;"
+        f"color:{accent};"
+        f"opacity:0.65;"
+        f"margin-top:4px;"
+        f"white-space:nowrap;"
+        f"overflow:hidden;"
+        f"text-overflow:ellipsis'>{sub}</div>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )

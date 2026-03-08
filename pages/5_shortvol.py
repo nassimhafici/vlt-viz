@@ -9,6 +9,7 @@ from plotly.subplots import make_subplots
 
 from core.db import load_prices
 from core.formatting import (
+    kpi_card,
     FONT, GREEN, RED, BORDER, TEXT, TEXT_DIM, TEXT_MID,
     BG, BG2, BG3, GRAY, BLUE, YELLOW
 )
@@ -141,22 +142,8 @@ def _sec(t, top=28):
         f"margin:{top}px 0 10px 0'>{t}</p>", unsafe_allow_html=True)
 
 def _kpi(col, label, value, sub="", vc=TEXT):
-    if vc == GREEN:    bg, ac, tc = "#f0fdf4","#16a34a","#14532d"
-    elif vc == RED:    bg, ac, tc = "#fef2f2","#dc2626","#7f1d1d"
-    elif vc == YELLOW: bg, ac, tc = "#fffbeb","#d97706","#78350f"
-    else:              bg, ac, tc = "#f8fafc","#64748b","#1e293b"
-    col.markdown(
-        f"<div style='background:{bg};border-radius:10px;"
-        f"padding:12px 14px 10px;border-top:3px solid {ac}'>"
-        f"<div style='font-size:8px;font-weight:700;letter-spacing:0.14em;"
-        f"text-transform:uppercase;color:{ac};font-family:{FONT};"
-        f"margin-bottom:6px'>{label}</div>"
-        f"<div style='font-size:19px;font-weight:300;color:{tc};"
-        f"line-height:1;font-family:{FONT}'>{value}</div>"
-        f"<div style='font-size:10px;color:{ac};opacity:.7;margin-top:5px;"
-        f"font-family:{FONT};white-space:nowrap;overflow:hidden;"
-        f"text-overflow:ellipsis'>{sub}</div>"
-        f"</div>", unsafe_allow_html=True)
+    _vc = "green" if vc == GREEN else "red" if vc == RED else "yellow" if vc == YELLOW else "neutral"
+    kpi_card(col, label, value, sub, _vc)
 
 def _fmt(v, sfx="", d=2, sign=True):
     if pd.isna(v): return "—"
@@ -553,8 +540,8 @@ with t4:
     fig_sc.add_trace(go.Scatter(
         x=vc_df["vix"], y=vc_df["v"], mode="markers",
         marker=dict(color=vc_df["vix"],
-                    colorscale=[[0,"#f0fdf4"],[0.45,"#fef3c7"],[1,"#fef2f2"]],
-                    size=4, opacity=0.65,
+                    colorscale=[[0,"#16a34a"],[0.35,"#ca8a04"],[0.65,"#ea580c"],[1,"#991b1b"]],
+                    size=5, opacity=0.75,
                     colorbar=dict(title="VIX", thickness=10,
                                   tickfont=dict(size=8,family=FONT,color=TEXT_DIM))),
         hovertemplate="VIX: %{x:.1f} → SVIX vol 21D: %{y:.1f}%<extra></extra>",

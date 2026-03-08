@@ -3,7 +3,8 @@ import streamlit as st
 from core.db import load_returns_with_meta
 from core.formatting import (
     FONT, COL_LABELS, RET_COLS, CATEGORY_LABELS, apply_category_filter,
-    style_returns_table, fmt_pct, GREEN, RED, BORDER, BG, BG2, BG3, TEXT, TEXT_DIM, TEXT_MID, GRAY
+    style_returns_table, fmt_pct, GREEN, RED, BORDER, BG2, BG3,
+    TEXT, TEXT_DIM, GRAY, kpi_card
 )
 from core.charts import returns_bar
 
@@ -17,84 +18,48 @@ if df.empty:
 EXCLUDE_CLASSES = {"Fixed Income", "Volatility"}
 df = df[~df["asset_class"].isin(EXCLUDE_CLASSES)].copy()
 
-# ── Sidebar ──────────────────────────────────────────────────────
+# ── Sidebar — Category filter, default = Benchmarks ──────────────
 with st.sidebar:
     display_as = st.radio("Display", ["Name", "Ticker"], horizontal=True)
     st.markdown("<hr style='border-color:#e5e7eb;margin:10px 0'>", unsafe_allow_html=True)
-    # Category filter (replaces asset_class + country)
-    filtered = apply_category_filter(df, key="cat_overview")
 
-# ── Period pill selector ──────────────────────────────────────────
+    cats_in_data = df["category"].dropna().unique().tolist() if "category" in df.columns else []
+    ordered  = [c for c in CATEGORY_LABELS if c in cats_in_data]
+    ordered += [c for c in sorted(cats_in_data) if c not in ordered]
+    options  = ["All"] + [CATEGORY_LABELS.get(c, c) for c in ordered]
+    _cat_map = {CATEGORY_LABELS.get(c, c): c for c in ordered}
+
+    default_idx = options.index("Benchmarks") if "Benchmarks" in options else 0
+    sel_cat = st.selectbox("Category", options, index=default_idx, key="cat_overview")
+
+filtered = df.copy()
+if sel_cat != "All":
+    filtered = filtered[filtered["category"] == _cat_map.get(sel_cat, sel_cat)]
+
+# ── Period pills ──────────────────────────────────────────────────
 WINDOWS = [("r1d","1D"),("r1w","1W"),("r1m","1M"),("r3m","3M"),("rytd","YTD"),("r1y","1Y")]
 if "ret_window" not in st.session_state:
     st.session_state.ret_window = "r1m"
 
-st.markdown("""
-<style>
-/* Period pills — scoped to .pill-btn class to avoid global conflicts */
-.pill-btn button {
-    height: 30px !important;
-    min-height: 30px !important;
-    padding: 0 !important;
-    width: 100% !important;
-    border-radius: 6px !important;
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif !important;
-    font-size: 11px !important;
-    font-weight: 600 !important;
-    letter-spacing: 0.08em !important;
-    border: 1.5px solid #e5e7eb !important;
-    background: #ffffff !important;
-    color: #9ca3af !important;
-    box-shadow: none !important;
-    transition: border-color 0.15s, color 0.15s !important;
-    cursor: pointer !important;
-}
-.pill-btn button:hover {
-    border-color: #2563eb !important;
-    color: #2563eb !important;
-    background: #eff6ff !important;
-    box-shadow: none !important;
-}
-.pill-btn button:focus {
-    box-shadow: none !important;
-    outline: none !important;
-}
-</style>
-""", unsafe_allow_html=True)
-
-pill_cols = st.columns(len(WINDOWS), gap="small")
-for col, (key, label) in zip(pill_cols, WINDOWS):
-    if key == st.session_state.ret_window:
-        col.markdown(
-            f"<div style='height:30px;display:flex;align-items:center;"
-            f"justify-content:center;background:#2563eb;border-radius:6px;'>"
-            f"<span style='font-family:{FONT};font-size:11px;font-weight:700;"
-            f"letter-spacing:0.08em;color:#fff'>{label}</span></div>",
-            unsafe_allow_html=True)
-    else:
-        with col:
-            st.markdown("<div class='pill-btn'>", unsafe_allow_html=True)
-            if st.button(label, key=f"w_{key}"):
-                st.session_state.ret_window = key
-                st.rerun()
+# Pills — all real st.button; active wrapped in div.pill-active-wrap for CSS targeting
+_pill_cols = st.columns(len(WINDOWS), gap="small")
+for _col, (_key, _label) in zip(_pill_cols, WINDOWS):
+    _is_active = (_key == st.session_state.ret_window)
+    with _col:
+        if _is_active:
+            st.markdown("<div class='pill-active-wrap'>", unsafe_allow_html=True)
+        if st.button(_label, key=f"w_{_key}", use_container_width=True):
+            st.session_state.ret_window = _key
+            st.rerun()
+        if _is_active:
             st.markdown("</div>", unsafe_allow_html=True)
 
 ret_window = st.session_state.ret_window
 wlabel     = dict(WINDOWS)[ret_window]
 
-# ── Category badge ────────────────────────────────────────────────
-cat_val = st.session_state.get("__cat_filter__", "All")
-cat_lbl = cat_val if cat_val == "All" else cat_val
-st.markdown(
-    f"<p style='font-family:{FONT};font-size:9px;color:{TEXT_DIM};"
-    f"text-transform:uppercase;letter-spacing:0.1em;margin:18px 0 0 0'>"
-    f"{cat_lbl} &nbsp;·&nbsp; {len(filtered)} assets</p>",
-    unsafe_allow_html=True)
-
 # ── KPI strip ─────────────────────────────────────────────────────
 valid = filtered[ret_window].dropna()
-
-st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
 if not valid.empty:
     top    = filtered.nlargest(1,  ret_window).iloc[0]
@@ -106,31 +71,16 @@ if not valid.empty:
 
     def _name(row):
         raw = row["name"] if display_as == "Name" else row["symbol"]
-        return (raw[:20] + "…") if len(raw) > 22 else raw
-
-    def kpi_card(label, value, sub, color, bg_color):
-        return (
-            f"<div style='background:{bg_color};border-radius:10px;"
-            f"padding:20px 24px;height:100%;'>"
-            f"<div style='font-family:{FONT};font-size:9px;font-weight:700;"
-            f"letter-spacing:0.14em;text-transform:uppercase;color:{color};"
-            f"opacity:0.7;margin-bottom:8px'>{label}</div>"
-            f"<div style='font-family:{FONT};font-size:28px;font-weight:300;"
-            f"color:{color};line-height:1;letter-spacing:-0.02em'>{value}</div>"
-            f"<div style='font-family:{FONT};font-size:11px;color:{color};"
-            f"opacity:0.55;margin-top:8px;font-weight:400'>{sub}</div>"
-            f"</div>"
-        )
+        return (raw[:22] + "…") if len(str(raw)) > 24 else str(raw)
 
     k1,k2,k3,k4,k5 = st.columns(5, gap="small")
-    k1.markdown(kpi_card("BEST",     fmt_pct(top[ret_window]),    _name(top),    "#065f46","#ecfdf5"), unsafe_allow_html=True)
-    k2.markdown(kpi_card("WORST",    fmt_pct(bottom[ret_window]), _name(bottom), "#991b1b","#fef2f2"), unsafe_allow_html=True)
-    k3.markdown(kpi_card("AVERAGE",  fmt_pct(avg), f"{n} assets",
-        "#1e3a5f" if avg >= 0 else "#7f1d1d", "#f0f9ff" if avg >= 0 else "#fff7f7"), unsafe_allow_html=True)
-    k4.markdown(kpi_card("% POSITIVE", f"{n_pos/n*100:.0f}%", f"{n_pos} of {n}", "#065f46","#f0fdf4"), unsafe_allow_html=True)
-    k5.markdown(kpi_card("% NEGATIVE", f"{n_neg/n*100:.0f}%", f"{n_neg} of {n}", "#991b1b","#fff1f2"), unsafe_allow_html=True)
+    kpi_card(k1, "Best",     fmt_pct(top[ret_window]),    _name(top),    "green")
+    kpi_card(k2, "Worst",    fmt_pct(bottom[ret_window]), _name(bottom), "red")
+    kpi_card(k3, "Average",  fmt_pct(avg),                f"{n} assets", "green" if avg>=0 else "red")
+    kpi_card(k4, "Positive", f"{n_pos/n*100:.0f}%",       f"{n_pos} of {n}", "green")
+    kpi_card(k5, "Negative", f"{n_neg/n*100:.0f}%",       f"{n_neg} of {n}", "red")
 
-st.markdown("<div style='height:32px'></div>", unsafe_allow_html=True)
+st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
 
 # ── Bar chart ─────────────────────────────────────────────────────
 st.markdown(
@@ -158,7 +108,5 @@ col_rename   = {**COL_LABELS, "symbol": "NAME" if display_as == "Name" else "SYM
                 "category": "CATEGORY", "country_cd": "COUNTRY"}
 table        = tbl[available].copy().rename(columns=col_rename)
 ret_display  = [COL_LABELS[c] for c in RET_COLS if c in tbl.columns]
-
-st.dataframe(
-    style_returns_table(table, ret_display),
-    use_container_width=True, height=520, hide_index=True)
+st.dataframe(style_returns_table(table, ret_display),
+             use_container_width=True, height=520, hide_index=True)
