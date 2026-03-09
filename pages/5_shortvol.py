@@ -37,6 +37,12 @@ _C_ENTROPY = "#7c3aed"
 _C_VXX     = "#dc2626"
 _C_SVXY    = "#059669"
 
+# FIX — Term structure: distinct colors for current vs historical snapshots
+_C_TS_NOW  = BLUE
+_C_TS_1D   = "#f59e0b"
+_C_TS_1W   = "#545f6e"
+_C_TS_1M   = "#94a3b8"
+
 def _layout(**kw):
     base = dict(
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor=BG2,
@@ -151,7 +157,7 @@ def _extend_svix_with_vxx(svix_raw, vxx_raw):
 # ══════════════════════════════════════════════════════════════════
 # DATA
 # ══════════════════════════════════════════════════════════════════
-SYMS = ["SVIX", "^VIX", "^VIX3M", "^VVIX", "SVXY", "VXX", "^VIX1D", "^VIX6M"]
+SYMS = ["SVIX", "^VIX", "^VIX3M", "^VVIX", "SVXY", "VXX", "^VIX1D", "^VIX6M", "^VIX9D"]
 
 @st.cache_data(ttl=3600)
 def _load():
@@ -167,11 +173,13 @@ def _load():
     return out
 
 raw = _load()
-def S(sym): return raw.get(sym, pd.Series(dtype=float))
+def S(sym):
+    return raw.get(sym, pd.Series(dtype=float))
 
 svix  = S("SVIX");   vix   = S("^VIX")
 vix3m = S("^VIX3M"); vvix  = S("^VVIX")
 vix1d = S("^VIX1D"); vix6m = S("^VIX6M")
+vix9d = S("^VIX9D")
 
 if svix.empty or vix.empty:
     st.warning("SVIX or VIX data not available. Run the pipeline first.")
@@ -195,7 +203,7 @@ vix3m_w = vix3m.tail(N) if not vix3m.empty else pd.Series(dtype=float)
 vvix_w  = vvix.tail(N)  if not vvix.empty  else pd.Series(dtype=float)
 vix1d_w = vix1d.tail(N) if not vix1d.empty else pd.Series(dtype=float)
 vix6m_w = vix6m.tail(N) if not vix6m.empty else pd.Series(dtype=float)
-
+vix9d_w = vix9d.tail(N) if not vix9d.empty else pd.Series(dtype=float)
 # ── SVIX core ─────────────────────────────────────────────────────
 ret_d  = svix_w.pct_change()
 
@@ -308,11 +316,11 @@ _kpi(k[3], "entropy",   f"{entropy_now:.2f}" if not np.isnan(entropy_now) else "
      sub=f"w={entropy_window}",
      vc=GREEN if not np.isnan(entropy_now) and entropy_now > 0.3
         else RED if np.isnan(entropy_now) or entropy_now < 0.15 else YELLOW)
-_kpi(k[4], "SVIX ret",  _fmt(cum_ret_svix, "%"), sub=f"{sel_p} underlying",
+_kpi(k[4], "SVIX return",  _fmt(cum_ret_svix, "%"), sub=f"{sel_p} underlying",
      vc=GREEN if cum_ret_svix > 0 else RED)
-_kpi(k[5], "ratio strat", _fmt(cum_ratio, "%"), sub=f"{sel_p} carry",
+_kpi(k[5], "slope ret", _fmt(cum_ratio, "%"), sub=f"{sel_p} carry",
      vc=GREEN if not np.isnan(cum_ratio) and cum_ratio > 0 else RED)
-_kpi(k[6], "entropy strat", _fmt(cum_entropy, "%"), sub=f"{sel_p} filtered",
+_kpi(k[6], "entropy strat ret", _fmt(cum_entropy, "%"), sub=f"{sel_p} filtered",
      vc=GREEN if not np.isnan(cum_entropy) and cum_entropy > 0 else RED)
 _kpi(k[7], "VVIX",
      f"{vvix_now:.1f}" if not np.isnan(vvix_now) else "—",
@@ -369,9 +377,9 @@ with t1:
             rc = (1 + strat_ratio_w.fillna(0)).cumprod()
             fig_strat.add_trace(go.Scatter(
                 x=rc.index, y=rc.values, mode="lines",
-                name="VIX/VIX3M ratio carry",
+                name="VIX/VIX3M slope carry",
                 line=dict(color=_C_RATIO, width=2),
-                hovertemplate="Ratio carry: %{y:.3f}<extra></extra>"))
+                hovertemplate="Slope carry: %{y:.3f}<extra></extra>"))
         if not strat_entropy_w.empty:
             ec = (1 + strat_entropy_w.fillna(0)).cumprod()
             fig_strat.add_trace(go.Scatter(
@@ -396,7 +404,7 @@ with t1:
 
         _sec("strategy comparison", top=20)
         for lbl_s, v1, v2, c1h, c2h in [
-            ("", "Ratio", "Entropy", _C_RATIO, _C_ENTROPY),
+            ("", "Slope Strat", "Entropy Strat", _C_RATIO, _C_ENTROPY),
             ("Return",  _fmt(cum_ratio,"%"),    _fmt(cum_entropy,"%"),     _C_RATIO, _C_ENTROPY),
             ("Sharpe",  f"{sharpe_ratio:.2f}" if not np.isnan(sharpe_ratio) else "—",
                         f"{sharpe_entropy:.2f}" if not np.isnan(sharpe_entropy) else "—",
@@ -432,81 +440,91 @@ with t1:
 # TAB 2 — TERM STRUCTURE & ENTROPY
 # ─────────────────────────────────────────────────────────────────
 with t2:
-    # ── Term structure snapshot: bar chart of VIX levels by maturity ──
     _sec("VIX term structure — current snapshot", top=8)
 
-    # Build maturity points from available series (latest value)
     _ts_maturities = [
-        ("VIX1D",  1,  vix1d),
-        ("VIX9D",  9,  vix),      # ^VIX is the 9/30-day rolling measure; label as spot
-        ("VIX3M",  90, vix3m),
-        ("VIX6M",  180, vix6m),
+        ("VIX 1D",  1,   vix1d),
+        ("VIX 9D", 1, vix9d),
+        ("VIX", 30,  vix),      # ^VIX = 30-day implied vol (CBOE definition)
+        ("VIX 3M",  93,  vix3m),
+        ("VIX 6M",  180, vix6m),
     ]
-    _ts_pts = [(lbl, days, float(s.iloc[-1])) for lbl, days, s in _ts_maturities if not s.empty]
+
+    # FIX — renamed loop variable from `lbl` to `ts_lbl` to avoid shadowing outer `lbl` functions
+    _ts_pts = [
+        (ts_lbl, days, float(s.iloc[-1]))
+        for ts_lbl, days, s in _ts_maturities
+        if not s.empty
+    ]
 
     if len(_ts_pts) >= 2:
         _ts_labels = [p[0] for p in _ts_pts]
-        _ts_days   = [p[1] for p in _ts_pts]
         _ts_vals   = [p[2] for p in _ts_pts]
 
-        # Color: green if level falls (contango = normal), red if it rises (backwardation)
-        _ts_colors = []
+        # FIX — term structure point colors: contango = green (upward sloping = normal),
+        # backwardation = red (downward slope = risk-on alert)
+        # First point gets the current curve color, subsequent points colored by slope direction
+        _ts_dot_colors = []
         for i, v in enumerate(_ts_vals):
             if i == 0:
-                _ts_colors.append(_C_RATIO)
+                _ts_dot_colors.append(_C_TS_NOW)
             else:
-                _ts_colors.append(GREEN if v >= _ts_vals[i-1] else RED)
+                # Contango = each maturity higher than previous = upward sloping = GREEN
+                _ts_dot_colors.append(GREEN if v >= _ts_vals[i-1] else RED)
 
         fig_ts = go.Figure()
-        # Smooth line connecting the points
+
+        # FIX — current curve line: bold blue, clearly visible
         fig_ts.add_trace(go.Scatter(
             x=_ts_labels, y=_ts_vals, mode="lines",
-            line=dict(color=BORDER, width=1.5, dash="dot"),
+            line=dict(color=_C_TS_NOW, width=2.5),
             showlegend=False, hoverinfo="skip"))
-        # Dots sized by level, colored by slope direction
+
+        # Current dots — large, color-coded by slope direction
         fig_ts.add_trace(go.Scatter(
             x=_ts_labels, y=_ts_vals, mode="markers+text",
-            marker=dict(color=_ts_colors, size=16, line=dict(color=BG2, width=2)),
+            name="Current",
+            marker=dict(
+                color=_ts_dot_colors,
+                size=18,
+                line=dict(color=BG2, width=2),
+            ),
             text=[f"{v:.1f}" for v in _ts_vals],
             textposition="top center",
-            textfont=dict(size=10, family=FONT, color=TEXT),
-            showlegend=False,
+            textfont=dict(size=11, family=FONT, color=TEXT, weight="bold"),
             hovertemplate="%{x}: %{y:.2f}<extra></extra>"))
 
-        # Historical snapshots: 1M ago and 1Y ago
-        for lookback_n, snap_lbl, snap_col in [(21, "1M ago", "#d1d5db"), (252, "1Y ago", "#e5e7eb")]:
+        # Historical snapshots — FIX: use distinct visible colors
+        for lookback_n, snap_lbl, snap_col, snap_width, snap_size in [
+            (1,  "1D ago", _C_TS_1D, 1.8, 8),
+            (5, "1W ago", _C_TS_1W, 1.2, 6),
+            (21, "1M ago", _C_TS_1M, 1.1, 5),
+        ]:
             _snap_pts = []
-            for lbl, days, s in _ts_maturities:
+            for ts_lbl, days, s in _ts_maturities:   # FIX — ts_lbl, not lbl
                 if not s.empty and len(s) > lookback_n:
-                    _snap_pts.append((lbl, float(s.iloc[-lookback_n-1])))
+                    _snap_pts.append((ts_lbl, float(s.iloc[-lookback_n-1])))
             if _snap_pts:
                 fig_ts.add_trace(go.Scatter(
                     x=[p[0] for p in _snap_pts],
                     y=[p[1] for p in _snap_pts],
                     mode="lines+markers", name=snap_lbl,
-                    line=dict(color=snap_col, width=1, dash="dot"),
-                    marker=dict(color=snap_col, size=6),
+                    line=dict(color=snap_col, width=snap_width, dash="dot"),
+                    marker=dict(color=snap_col, size=snap_size,
+                                line=dict(color=BG2, width=1)),
                     hovertemplate=f"{snap_lbl} — %{{x}}: %{{y:.2f}}<extra></extra>"))
 
         fig_ts.update_layout(
-            **_layout(height=280, hovermode="x"),
+            **_layout(height=300, hovermode="x"),
             legend=_LEG_TOP,
             xaxis=dict(showgrid=False, linecolor=BORDER,
-                       tickfont=dict(size=11, color=TEXT, family=FONT),
+                       tickfont=dict(size=12, color=TEXT, family=FONT),
                        categoryorder="array", categoryarray=_ts_labels),
             yaxis=dict(showgrid=True, gridcolor="#f3f4f6", linecolor=BORDER,
                        tickfont=dict(size=9, color=TEXT_DIM), title="VIX level"),
         )
         st.plotly_chart(fig_ts, use_container_width=True)
 
-        # Mini slope indicator
-        if len(_ts_vals) >= 2:
-            slope_shape = "normal (contango)" if _ts_vals[-1] >= _ts_vals[0] else "inverted (backwardation)"
-            slope_col   = GREEN if _ts_vals[-1] >= _ts_vals[0] else RED
-            st.markdown(
-                f"<p style='font-family:{FONT};font-size:10px;color:{slope_col};"
-                f"font-weight:600;margin:0 0 16px 0'>● curve shape: {slope_shape}</p>",
-                unsafe_allow_html=True)
     else:
         st.info("Not enough VIX term structure data available.")
 
@@ -596,7 +614,7 @@ with t3:
         _sec("strategy signals — ratio carry & entropy filter", top=8)
         fig_sig = make_subplots(rows=3, cols=1, shared_xaxes=True,
                                 row_heights=[0.45,0.275,0.275], vertical_spacing=0.05,
-                                subplot_titles=["SVIX underlying", "VIX/VIX3M ratio carry signal", "Entropy filtered signal"])
+                                subplot_titles=["SVIX underlying", "VIX/VIX3M slope carry signal", "Entropy filtered signal"])
         fig_sig.add_trace(go.Scatter(
             x=svix_w.index, y=svix_w.values, mode="lines", name="SVIX",
             line=dict(color=_C_SVIX, width=1.6),
@@ -608,7 +626,7 @@ with t3:
         if len(on_r):
             fig_sig.add_trace(go.Scatter(
                 x=on_r, y=svix_w.reindex(on_r).values, mode="markers",
-                name="Ratio ON", marker=dict(color=_C_RATIO, size=2, opacity=0.5),
+                name="Slope ON", marker=dict(color=_C_RATIO, size=2, opacity=0.5),
                 hoverinfo="skip"), row=1, col=1)
 
         # Shade entropy ON
@@ -658,8 +676,8 @@ with t3:
                           and ratio_now < 1.0 and entropy_now >= entropy_threshold)
 
         c1,c2,c3,c4,c5,c6 = st.columns(6)
-        _kpi(c1, "ratio signal",  "ON" if ratio_now_on else "OFF",   vc=GREEN if ratio_now_on else RED)
-        _kpi(c2, f"ratio % ON",   f"{ratio_on_pct:.0f}%" if not np.isnan(ratio_on_pct) else "—",
+        _kpi(c1, "Slope signal",  "ON" if ratio_now_on else "OFF",   vc=GREEN if ratio_now_on else RED)
+        _kpi(c2, f"Slope % ON",   f"{ratio_on_pct:.0f}%" if not np.isnan(ratio_on_pct) else "—",
              vc=GREEN if not np.isnan(ratio_on_pct) and ratio_on_pct > 60 else YELLOW)
         _kpi(c3, "entropy signal","ON" if entropy_now_on else "OFF", vc=GREEN if entropy_now_on else RED)
         _kpi(c4, f"entropy % ON", f"{entropy_on_pct:.0f}%" if not np.isnan(entropy_on_pct) else "—",
@@ -685,9 +703,9 @@ with t4:
     if not dd_ratio.empty:
         fig_dd_all.add_trace(go.Scatter(
             x=dd_ratio.index, y=dd_ratio.values, mode="lines",
-            name="VIX/VIX3M ratio carry",
+            name="VIX/VIX3M slope carry",
             line=dict(color=_C_RATIO, width=1.8),
-            hovertemplate="Ratio carry: %{y:.2f}%<extra></extra>"))
+            hovertemplate="Slope carry: %{y:.2f}%<extra></extra>"))
     if not dd_entropy.empty:
         fig_dd_all.add_trace(go.Scatter(
             x=dd_entropy.index, y=dd_entropy.values, mode="lines",
@@ -798,12 +816,12 @@ with t5:
         else:
             st.info("VVIX not available.")
 
-        _sec("VIX/VIX3M ratio distribution")
+        _sec("VIX/VIX3M slope distribution")
         if not slope_w.empty:
             fig_sr = go.Figure()
             fig_sr.add_trace(go.Histogram(x=slope_w.dropna().values, nbinsx=40, showlegend=False,
                 marker=dict(color=_C_RATIO, opacity=0.6, line=dict(width=0)),
-                hovertemplate="Ratio %{x:.3f}: %{y} days<extra></extra>"))
+                hovertemplate="Slope %{x:.3f}: %{y} days<extra></extra>"))
             fig_sr.add_vline(x=ratio_now, line_color=BLUE, line_width=2,
                              annotation_text=f"now {ratio_now:.3f}",
                              annotation_font=dict(size=9,family=FONT,color=BLUE))
@@ -815,7 +833,7 @@ with t5:
             st.plotly_chart(fig_sr, use_container_width=True)
 
     if not vvix_vix_ratio.empty:
-        _sec("VVIX / VIX ratio — tail risk gauge")
+        _sec("VVIX / VIX ratio")
         vvix_vix_w = vvix_vix_ratio.tail(N)
         fig_vr = go.Figure()
         fig_vr.add_trace(go.Scatter(

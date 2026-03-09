@@ -10,7 +10,9 @@ from core.db import load_assets, load_multi_prices, load_returns_snapshot
 from core.formatting import (
     kpi_card,
     fmt_pct, FONT,
-    GREEN, RED, BORDER, TEXT, TEXT_DIM, TEXT_MID, BG, BG2, BG3, GRAY, BLUE, YELLOW
+    GREEN, RED, BORDER, TEXT, TEXT_DIM, TEXT_MID, BG, BG2, BG3, GRAY, BLUE, YELLOW,
+    CATEGORY_LABELS,
+    _table_styles,
 )
 
 st.title("compare")
@@ -35,24 +37,20 @@ for _col, _p in zip(_pcols, PERIODS):
 period = st.session_state.cmp_period
 
 # ══════════════════════════════════════════════════════════════════
-# A. UNIVERSE CATALOG
+# CONSTANTS
 # ══════════════════════════════════════════════════════════════════
-CATEGORY_LABELS = {
-    "country":       "Countries",
-    "sector-us":     "US Sectors",
-    "sector-world":  "World Sectors",
-    "sector-ca":     "Canada Sectors",
-    "style":         "Styles & Factors",
-    "thematic":      "Thematics",
-    "commodity":     "Commodities",
-    "benchmark":     "Benchmarks",
-    "vol-etf":       "Vol ETFs",
-}
+# FIX #3 — CATEGORY_LABELS now imported from core.formatting
+# FIX #9 — PERIOD_BARS defined once here (move to core/ later if used elsewhere)
 CATEGORY_ORDER = [
     "country", "sector-us", "sector-world", "sector-ca",
     "style", "thematic", "commodity", "benchmark", "vol-etf",
 ]
+PERIOD_BARS = {"1M":21,"3M":63,"6M":126,"1Y":252,"2Y":504,"3Y":756,"5Y":1260}
+CORR_SHIFT  = {"1D":1,"1W":5,"1M":21}
 
+# ══════════════════════════════════════════════════════════════════
+# A. UNIVERSE CATALOG
+# ══════════════════════════════════════════════════════════════════
 _STRIP = [
     "iShares MSCI ","iShares Core S&P/TSX Capped ",
     "iShares S&P/TSX Capped ","iShares Global ",
@@ -98,7 +96,7 @@ with st.sidebar:
     corr_freq  = st.selectbox("Correlation frequency", ["1D","1W","1M"], index=1)
     display_as = st.radio("Labels", ["Name","Ticker"], horizontal=True)
     st.markdown("<hr style='border-color:#e5e7eb;margin:12px 0'>", unsafe_allow_html=True)
-    benchmark  = st.selectbox("Benchmark", ["None","SPY","QQQ","VT"], index=1)
+    benchmark  = st.selectbox("Benchmark", ["None","SPY","QQQ","VT", "VEQT"], index=1)
 
 # ══════════════════════════════════════════════════════════════════
 # C. UNIVERSE RESOLUTION
@@ -119,10 +117,7 @@ def tooltip(sym): return _sym_full.get(sym, sym)
 # ══════════════════════════════════════════════════════════════════
 # D. PRICE DATA
 # ══════════════════════════════════════════════════════════════════
-PERIOD_BARS = {"1M":21,"3M":63,"6M":126,"1Y":252,"2Y":504,"3Y":756,"5Y":1260}
-CORR_SHIFT  = {"1D":1,"1W":5,"1M":21}
-n_bars      = PERIOD_BARS[period]
-
+n_bars    = PERIOD_BARS[period]
 bm_sym    = benchmark if benchmark != "None" else None
 load_syms = list(dict.fromkeys(symbols + ([bm_sym] if bm_sym else [])))
 
@@ -139,7 +134,8 @@ active  = px_win.columns.tolist()
 if not active:
     st.warning("Not enough price history."); st.stop()
 
-daily    = px_win.pct_change(1).ffill(limit=5)
+
+daily    = px_win.pct_change(1)
 ret_corr = px_win.pct_change(CORR_SHIFT[corr_freq]).dropna(how="all")
 cum_ret  = (1 + daily.fillna(0)).cumprod() - 1
 last_cum = cum_ret.iloc[-1]
@@ -153,26 +149,26 @@ def _dd(prices):
 
 dd_mat   = pd.DataFrame({s: _dd(px_win[s]) for s in active}).reindex(px_win.index)
 roll_vol = daily.rolling(21).std() * np.sqrt(252) * 100
-vol_1m   = daily.tail(21).std() * np.sqrt(252) * 100
-vol_3m   = daily.tail(63).std() * np.sqrt(252) * 100
+vol_1m   = daily.apply(lambda c: c.dropna().tail(21).std() * np.sqrt(252) * 100)
+vol_3m   = daily.apply(lambda c: c.dropna().tail(63).std() * np.sqrt(252) * 100)
 max_dd   = dd_mat.min()
 curr_dd  = dd_mat.iloc[-1]
-sharpe   = (daily.mean() / daily.std()) * np.sqrt(252)
+sharpe   = daily.apply(lambda c: (c.dropna().mean() / c.dropna().std()) * np.sqrt(252))
 calmar   = last_cum / max_dd.abs().replace(0, np.nan)
 
+# FIX #4 — Vectorised beta calculation
 beta = pd.Series(np.nan, index=active)
 if bm_sym and bm_sym in px_all.columns:
-    bm_prices = px_all[bm_sym].dropna()
-    if len(bm_prices) > 30:
-        bm_ret = bm_prices.pct_change(1)
-        for s in active:
-            s_ret = px_all[s].pct_change(1).dropna() if s in px_all.columns else pd.Series()
-            aligned = pd.concat([s_ret, bm_ret], axis=1, join="inner").dropna()
-            aligned.columns = ["s","bm"]
-            if len(aligned) > 20:
-                bm_var = aligned["bm"].var()
-                if bm_var > 1e-10:
-                    beta[s] = aligned["s"].cov(aligned["bm"]) / bm_var
+    bm_ret = px_all[bm_sym].pct_change().dropna()
+    if len(bm_ret) > 30:
+        asset_rets = px_all[active].pct_change()
+        aligned    = asset_rets.join(bm_ret.rename("__bm"), how="inner").dropna(how="all")
+        bm_aligned = aligned.pop("__bm")
+        bm_var     = bm_aligned.var()
+        if bm_var > 1e-10:
+            beta = aligned.apply(lambda col: col.dropna().cov(
+                bm_aligned.reindex(col.dropna().index)) / bm_var
+            )
 
 snap_df = load_returns_snapshot(active)
 
@@ -185,14 +181,15 @@ LINE_COLORS = [
     "#6366f1","#f59e0b","#10b981","#ef4444","#a78bfa",
     "#34d399","#fb923c","#60a5fa",
 ]
-def _c(i): return LINE_COLORS[i % len(LINE_COLORS)]
+
+_COLOR_MAP = {sym: LINE_COLORS[i % len(LINE_COLORS)] for i, sym in enumerate(active)}
+def _c(sym): return _COLOR_MAP.get(sym, LINE_COLORS[0])
 
 def _hex_rgba(h, a=0.12):
     h = h.lstrip("#")
     r,g,b = int(h[:2],16),int(h[2:4],16),int(h[4:],16)
     return f"rgba({r},{g},{b},{a})"
 
-# Pre-defined legend configs — pass as legend= to update_layout
 _LEGEND_SIDE = dict(bgcolor="rgba(0,0,0,0)", borderwidth=0,
                     font=dict(size=9, color=TEXT_DIM),
                     orientation="v", x=1.02, y=1, xanchor="left")
@@ -201,7 +198,6 @@ _LEGEND_TOP  = dict(bgcolor="rgba(0,0,0,0)", borderwidth=0,
                     orientation="h", x=0, y=1.08)
 
 def _layout(**kw):
-    """Base Plotly layout — NO legend key so callers set it freely."""
     base = dict(
         paper_bgcolor=BG2,
         plot_bgcolor=BG2,
@@ -235,20 +231,16 @@ def _kpi(col, label, value, sub="", vc=TEXT):
     _vc = "green" if vc == GREEN else "red" if vc == RED else "yellow" if vc == YELLOW else "neutral"
     kpi_card(col, label, value, sub, _vc)
 
-_TS = [
-    {"selector":"th","props":[
-        ("background",BG3),("color",TEXT_DIM),("font-family",FONT),
-        ("font-size","10px"),("font-weight","600"),("text-transform","uppercase"),
-        ("letter-spacing","0.06em"),("border-bottom",f"1px solid {BORDER}"),
-        ("border-top",f"1px solid {BORDER}"),("padding","7px 12px"),("white-space","nowrap"),
-    ]},
-    {"selector":"td","props":[
-        ("background",BG2),("font-family",FONT),("font-size","12px"),
-        ("color",TEXT),("border-bottom",f"1px solid {BORDER}"),("padding","5px 12px"),
-    ]},
-    {"selector":"tr:hover td","props":[("background",BG3)]},
-]
 
+_TS = _table_styles()
+
+
+def _fmt_pct(x):  return fmt_pct(x) if pd.notna(x) else "—"
+def _fmt_vol(x):  return f"{x:.2f}%" if pd.notna(x) else "—"
+def _fmt_dd(x):   return f"{x*100:.2f}%" if pd.notna(x) else "—"
+def _fmt_rat(x):  return f"{x:.2f}" if pd.notna(x) else "—"
+
+# FIX #2 — replace applymap (deprecated Pandas 2.1+) with .map throughout
 def _cr(v):
     if pd.isna(v): return f"color:{GRAY}"
     return f"color:{GREEN}" if v > 0 else f"color:{RED}"
@@ -312,20 +304,16 @@ for s in sorted_syms:
     summ_rows.append(row)
 
 summ_df = pd.DataFrame(summ_rows).reset_index(drop=True)
-fmt_s = {
-    ret_col:  lambda x: fmt_pct(x)       if pd.notna(x) else "—",
-    "Vol 3M": lambda x: f"{x:.2f}%"     if pd.notna(x) else "—",
-    "Max DD": lambda x: f"{x*100:.2f}%" if pd.notna(x) else "—",
-    "Sharpe": lambda x: f"{x:.2f}"      if pd.notna(x) else "—",
-    "Calmar": lambda x: f"{x:.2f}"      if pd.notna(x) else "—",
-}
-if beta_col: fmt_s[beta_col] = lambda x: f"{x:.2f}" if pd.notna(x) else "—"
+fmt_s = {ret_col: _fmt_pct, "Vol 3M": _fmt_vol, "Max DD": _fmt_dd,
+         "Sharpe": _fmt_rat, "Calmar": _fmt_rat}
+if beta_col: fmt_s[beta_col] = _fmt_rat
 
+# FIX #2 — .map() replaces deprecated .applymap()
 s_obj = summ_df.style.set_table_styles(_TS).format(fmt_s)
 for col_n, fn in [(ret_col,_cr),("Vol 3M",_cv),("Max DD",_cdd),("Sharpe",_csh),("Calmar",_csh)]:
-    if col_n in summ_df.columns: s_obj = s_obj.applymap(fn, subset=[col_n])
+    if col_n in summ_df.columns: s_obj = s_obj.map(fn, subset=[col_n])
 if beta_col and beta_col in summ_df.columns:
-    s_obj = s_obj.applymap(_cb, subset=[beta_col])
+    s_obj = s_obj.map(_cb, subset=[beta_col])
 st.dataframe(s_obj, use_container_width=True,
              height=min(58 + len(summ_df)*35, 420), hide_index=True)
 
@@ -406,7 +394,8 @@ with tab_corr:
         col_w.markdown(f"<p style='font-family:{FONT};font-size:9px;color:{TEXT_DIM};"
                        f"text-transform:uppercase;letter-spacing:0.1em;margin:24px 0 8px'>{ttl}</p>",
                        unsafe_allow_html=True)
-        col_w.dataframe(df_p.style.applymap(_c_rho,subset=["ρ"])
+
+        col_w.dataframe(df_p.style.map(_c_rho,subset=["ρ"])
                         .format({"ρ":"{:.2f}"}).set_table_styles(_TS),
                         width='stretch', hide_index=True)
 
@@ -457,11 +446,11 @@ with tab_perf:
     _sec("rebased to 100")
     fig_norm = go.Figure()
     fig_norm.add_hline(y=100, line_color="#e5e7eb", line_width=1)
-    for i, sym in enumerate(ordered_perf):
+    for sym in ordered_perf:
         if sym not in px_norm.columns: continue
         s = px_norm[sym].dropna()
         fig_norm.add_trace(go.Scatter(x=s.index, y=s.values, mode="lines", name=lbl(sym),
-                                      line=dict(color=_c(i),width=1.5),
+                                      line=dict(color=_c(sym),width=1.5),
                                       hovertemplate=f"{lbl(sym)}: %{{y:.1f}}<extra></extra>"))
     fig_norm.update_layout(**_layout(height=340, margin=dict(l=58,r=160,t=20,b=48)),
                            legend=_LEGEND_SIDE)
@@ -472,11 +461,11 @@ with tab_perf:
     _sec("cumulative return (%)")
     fig_cum = go.Figure()
     fig_cum.add_hline(y=0, line_color="#e5e7eb", line_width=1)
-    for i, sym in enumerate(ordered_perf):
+    for sym in ordered_perf:
         if sym not in cum_ret.columns: continue
         s = cum_ret[sym].dropna() * 100
         fig_cum.add_trace(go.Scatter(x=s.index, y=s.values, mode="lines", name=lbl(sym),
-                                     line=dict(color=_c(i),width=1.5),
+                                     line=dict(color=_c(sym),width=1.5),
                                      hovertemplate=f"{lbl(sym)}: %{{y:.2f}}%<extra></extra>"))
     fig_cum.update_layout(**_layout(height=320, margin=dict(l=58,r=160,t=20,b=48)),
                           legend=_LEGEND_SIDE)
@@ -492,10 +481,10 @@ with tab_dd:
     _sec(f"underwater equity curve — {period}")
     fig_uw = go.Figure()
     fig_uw.add_hline(y=0, line_color="#e5e7eb", line_width=1)
-    for i, sym in enumerate(dd_ordered):
+    for sym in dd_ordered:
         if sym not in dd_mat.columns: continue
         s = dd_mat[sym].dropna() * 100
-        color = _c(i)
+        color = _c(sym)  # FIX #8 — stable color by symbol
         fig_uw.add_trace(go.Scatter(
             x=s.index, y=s.values, mode="lines", name=lbl(sym),
             line=dict(color=color, width=1.3),
@@ -533,13 +522,12 @@ with tab_dd:
         "Current DD":   [curr_dd.get(s,np.nan) for s in dd_ordered],
         f"Ret {period}":[last_cum.get(s,np.nan) for s in dd_ordered],
     })
+    # FIX #2 — .map() replaces deprecated .applymap()
     st.dataframe(
         dd_tbl.style
-        .applymap(_cdd, subset=["Max DD","Current DD"])
-        .applymap(_cr,  subset=[f"Ret {period}"])
-        .format({"Max DD": lambda x: f"{x*100:.2f}%" if pd.notna(x) else "—",
-                 "Current DD": lambda x: f"{x*100:.2f}%" if pd.notna(x) else "—",
-                 f"Ret {period}": lambda x: fmt_pct(x) if pd.notna(x) else "—"})
+        .map(_cdd, subset=["Max DD","Current DD"])
+        .map(_cr,  subset=[f"Ret {period}"])
+        .format({"Max DD": _fmt_dd, "Current DD": _fmt_dd, f"Ret {period}": _fmt_pct})
         .set_table_styles(_TS),
         use_container_width=True,
         height=min(60+len(dd_tbl)*34,520), hide_index=True)
@@ -551,11 +539,11 @@ with tab_vol:
 
     _sec("rolling 21D volatility — annualized")
     fig_rv = go.Figure()
-    for i, sym in enumerate(vol_ordered):
+    for sym in vol_ordered:
         if sym not in roll_vol.columns: continue
         s = roll_vol[sym].dropna()
         fig_rv.add_trace(go.Scatter(x=s.index, y=s.values, mode="lines", name=lbl(sym),
-                                    line=dict(color=_c(i),width=1.3),
+                                    line=dict(color=_c(sym),width=1.3),  # FIX #8
                                     hovertemplate=f"{lbl(sym)}: %{{y:.2f}}%<extra></extra>"))
     fig_rv.update_layout(**_layout(height=340, margin=dict(l=58,r=160,t=20,b=48)),
                          legend=_LEGEND_SIDE)
@@ -669,20 +657,21 @@ with tab_risk:
     r_ret   = f"Ret {period}"
     r_beta  = f"β {bm_sym}" if bm_sym else None
     r_fmt   = {
-        r_ret:     lambda x: fmt_pct(x)       if pd.notna(x) else "—",
-        "Vol 1M":  lambda x: f"{x:.2f}%"     if pd.notna(x) else "—",
-        "Vol 3M":  lambda x: f"{x:.2f}%"     if pd.notna(x) else "—",
-        "Max DD":  lambda x: f"{x*100:.2f}%" if pd.notna(x) else "—",
-        "Curr DD": lambda x: f"{x*100:.2f}%" if pd.notna(x) else "—",
-        "Sharpe":  lambda x: f"{x:.2f}"      if pd.notna(x) else "—",
-        "Calmar":  lambda x: f"{x:.2f}"      if pd.notna(x) else "—",
+        r_ret:     _fmt_pct,
+        "Vol 1M":  _fmt_vol,
+        "Vol 3M":  _fmt_vol,
+        "Max DD":  _fmt_dd,
+        "Curr DD": _fmt_dd,
+        "Sharpe":  _fmt_rat,
+        "Calmar":  _fmt_rat,
     }
-    if r_beta: r_fmt[r_beta] = lambda x: f"{x:.2f}" if pd.notna(x) else "—"
+    if r_beta: r_fmt[r_beta] = _fmt_rat
+
     r_obj = risk_df.style.set_table_styles(_TS).format(r_fmt)
     for col_n, fn in [(r_ret,_cr),("Vol 1M",_cv),("Vol 3M",_cv),
                       ("Max DD",_cdd),("Curr DD",_cdd),("Sharpe",_csh),("Calmar",_csh)]:
-        if col_n in risk_df.columns: r_obj = r_obj.applymap(fn, subset=[col_n])
+        if col_n in risk_df.columns: r_obj = r_obj.map(fn, subset=[col_n])
     if r_beta and r_beta in risk_df.columns:
-        r_obj = r_obj.applymap(_cb, subset=[r_beta])
+        r_obj = r_obj.map(_cb, subset=[r_beta])
     st.dataframe(r_obj, use_container_width=True,
                  height=min(60+len(risk_df)*34,620), hide_index=True)
