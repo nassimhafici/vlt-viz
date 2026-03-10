@@ -344,9 +344,9 @@ with st.sidebar:
     lookback = st.selectbox("FF regression lookback (months)", [24, 36, 48, 60], index=1)
     horizons_str = st.multiselect("Momentum horizons (months)",
                                    [3, 6, 9, 12, 18, 24], default=[6, 12])
-    mom_method = st.selectbox("Signal method", ["trend", "sharpe", "tstat", "sum"], index=0)
+    mom_method = st.selectbox("Signal function", ["trend", "sharpe", "tstat", "sum"], index=0)
     skip_months = st.selectbox("Skip last N months", [0, 1, 2], index=1)
-    n_deciles = st.selectbox("Deciles", [5, 10, 15, 20], index=1)
+    n_deciles = st.selectbox("N Deciles", [5, 10, 15, 20], index=1)
     corr_thresh = st.slider("Correlation filter", 0.5, 1.0, 0.80, 0.05)
 
     st.markdown("<hr style='border-color:#e5e7eb;margin:10px 0'>", unsafe_allow_html=True)
@@ -487,7 +487,7 @@ t1, t2, t3, t4, t5 = st.tabs([
 # TAB 1 — BACKTEST
 # ─────────────────────────────────────────────────────────────────
 with t1:
-    _sec("cumulative returns", top=8)
+    _sec("cumulative returns (log base)", top=8)
     cum_mom   = (1 + combined["MOM"]).cumprod()
     cum_svix  = (1 + combined["SVIX"]).cumprod()
     cum_comb  = (1 + combined["COMBINED"]).cumprod()
@@ -496,7 +496,7 @@ with t1:
     fig = go.Figure()
     for s, c, nm in [(cum_comb, BLUE, "Combined"), (cum_mom, "#059669", "Momentum"),
                       (cum_svix, "#d97706", "SVIX carry"), (cum_bench, GRAY, "SPY")]:
-        fig.add_trace(go.Scatter(x=s.index, y=s.values, mode="lines", name=nm,
+        fig.add_trace(go.Scatter(x=s.index, y=np.log(s.values), mode="lines", name=nm,
                                   line=dict(color=c, width=2 if nm == "Combined" else 1.3,
                                             dash="solid" if nm == "Combined" else "dot" if nm == "SPY" else "solid"),
                                   hovertemplate=f"{nm}: %{{y:.3f}}<extra></extra>"))

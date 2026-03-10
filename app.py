@@ -1,14 +1,39 @@
 import streamlit as st
+import base64
+FONT        = "'Helvetica Neue', Helvetica, Arial, sans-serif"
+ACCENT      = "#6366f1"
+ACCENT_SOFT = "#eef2ff"
+ACCENT_MID  = "#a5b4fc"
 
 st.set_page_config(
     page_title="VLT",
-    page_icon=None,
+    page_icon="favicon.png",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-FONT = "'Helvetica Neue', Helvetica, Arial, sans-serif"
 
+_SVG = f"""<svg width="160" height="40" viewBox="0 0 160 40" fill="none"
+     xmlns="http://www.w3.org/2000/svg">
+  <rect width="36" height="36" x="2" y="2" rx="8" fill="#111827"/>
+  <polyline points="8,28 14,20 19,23 26,12 32,15"
+            stroke="white" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <circle cx="32" cy="18" r="2.2" fill="{ACCENT_MID}"/>
+  <text x="48" y="22"
+        font-family="Helvetica Neue, Helvetica, Arial, sans-serif"
+        font-size="18" font-weight="700" letter-spacing="3"
+        fill="#111827">VLT</text>
+  <text x="49" y="32"
+        font-family="Helvetica Neue, Helvetica, Arial, sans-serif"
+        font-size="8" font-weight="550" letter-spacing="0.9"
+        fill="#9ca3af">MARKET INTELLIGENCE</text>
+</svg>"""
+
+_data_uri = "data:image/svg+xml;base64," + base64.b64encode(_SVG.encode()).decode()
+
+# Doit être appelé AVANT st.navigation() pour s'afficher au-dessus
+st.logo(_data_uri, size="large")
 _CSS = """
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
 

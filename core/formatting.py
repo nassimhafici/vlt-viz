@@ -266,69 +266,20 @@ def apply_category_filter(df: pd.DataFrame, key: str = "cat_filter"):
 # KPI card
 # ─────────────────────────────────────────────────────────────────
 def kpi_card(col, label: str, value: str, sub: str = "", vc: str = "neutral"):
-
-    import streamlit as st
-
     themes = {
-
         "green":   ("#f0fdf4", "#16a34a", "#14532d"),
         "red":     ("#fef2f2", "#dc2626", "#7f1d1d"),
         "yellow":  ("#fffbeb", "#d97706", "#78350f"),
         "neutral": ("#f8fafc", "#64748b", "#1e293b"),
-
     }
-
     bg, accent, tc = themes.get(vc, themes["neutral"])
-
     arrow = "▲" if vc == "green" else "▼" if vc == "red" else ""
 
     col.markdown(
-
-        f"""
-        <div style="
-        background:{bg};
-        border-radius:8px;
-        padding:12px 14px;
-        border-top:2px solid {accent};
-        min-height:70px">
-
-        <div style="
-        font-family:{FONT};
-        font-size:9px;
-        font-weight:700;
-        letter-spacing:0.12em;
-        text-transform:uppercase;
-        color:{accent};
-        margin-bottom:6px">
-
-        {label}
-
-        </div>
-
-        <div style="
-        font-family:{FONT};
-        font-size:18px;
-        font-weight:300;
-        color:{tc};
-        line-height:1">
-
-        {value}
-
-        </div>
-
-        <div style="
-        font-family:{FONT};
-        font-size:10px;
-        color:{accent};
-        opacity:0.7;
-        margin-top:4px">
-
-        {arrow} {sub}
-
-        </div>
-
-        </div>
-        """,
-
+        f'<div style="background:{bg};border-radius:8px;padding:12px 14px;border-top:2px solid {accent};">'
+        f'<div style="font-family:{FONT};font-size:9px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:{accent};margin-bottom:6px">{label}</div>'
+        f'<div style="font-family:{FONT};font-size:14px;font-weight:300;color:{tc};line-height:1">{value}</div>'
+        + (f'<div style="font-family:{FONT};font-size:10px;color:{accent};opacity:0.7;margin-top:4px">{arrow} {sub}</div>' if sub else "")
+        + '</div>',
         unsafe_allow_html=True,
     )

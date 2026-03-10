@@ -8,14 +8,18 @@ from core.formatting import (
 )
 from core.charts import returns_bar
 
-st.title("overview")
+EXCLUDE_CLASSES = {"Fixed Income", "Volatility"}
+
 
 # ── Load ─────────────────────────────────────────────────────────
 df = load_returns_with_meta()
-if df.empty:
-    st.warning("No data."); st.stop()
+last_date = pd.to_datetime(df["date"]).max().strftime("%Y-%m-%d")
 
-EXCLUDE_CLASSES = {"Fixed Income", "Volatility"}
+st.title(f"overview as of {last_date}")
+if df.empty:
+    st.warning("No data to load..."); st.stop()
+
+
 df = df[~df["asset_class"].isin(EXCLUDE_CLASSES)].copy()
 
 # ── Sidebar — Category filter, default = Benchmarks ──────────────
@@ -86,10 +90,11 @@ st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
 st.markdown(
     f"<p style='font-family:{FONT};font-size:9px;font-weight:600;color:{TEXT_DIM};"
     f"text-transform:uppercase;letter-spacing:0.12em;margin:0 0 10px 0'>"
-    f"TOP &amp; BOTTOM — {wlabel}</p>", unsafe_allow_html=True)
+    f"Top &amp; Worst Assets — {wlabel}</p>", unsafe_allow_html=True)
 
 chart_df = filtered.copy()
 chart_df["_label"] = chart_df["name"].str[:30] if display_as == "Name" else chart_df["symbol"]
+
 st.plotly_chart(returns_bar(chart_df, ret_col=ret_window, top_n=12, label_col="_label"), width="stretch")
 
 # ── Table ─────────────────────────────────────────────────────────

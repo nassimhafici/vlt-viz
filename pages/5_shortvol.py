@@ -22,7 +22,7 @@ from core.formatting import (
     BG, BG2, BG3, GRAY, BLUE, YELLOW
 )
 
-st.title("short vol")
+st.title("shortvol strategy")
 
 # ══════════════════════════════════════════════════════════════════
 # HELPERS
