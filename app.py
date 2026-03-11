@@ -228,7 +228,7 @@ pg = st.navigation([
     st.Page("pages/4_rates.py",           title="RATES"),
     st.Page("pages/5_shortvol.py",        title="SHORTVOL"),
     st.Page("pages/6_residual_momentum.py", title="RES. MOMENTUM"),
-agent     st.Page("pages/7_🧠agent.py", title="AGENT"),
+    st.Page("pages/7_🧠agent.py", title="AGENT"),
 ])
 
 pg.run()
