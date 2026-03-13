@@ -32,7 +32,7 @@ st.title("agent (Beta)")
 
 MODEL = "claude-sonnet-4-20250514"
 MAX_TOKENS = 2000
-MAX_TOOL_ROUNDS = 6   # guard against infinite loops
+MAX_TOOL_ROUNDS = 10  # guard against infinite loops
 
 # ── DB schema injecté dans le system prompt ──────────────────────
 DB_SCHEMA = """
