@@ -228,8 +228,8 @@ pg = st.navigation([
     st.Page("pages/4_rates.py",               title="RATES",      icon=":material/show_chart:"),
     st.Page("pages/5_shortvol.py",            title="SHORT VOL",  icon=":material/bolt:"),
     st.Page("pages/6_residual_momentum.py",   title="MOMENTUM",   icon=":material/rotate_right:"),
-    st.Page("pages/7_🧠agent.py",             title="AGENT",      icon=":material/chat:"),
-    st.Page("pages/8_news.py",                title="NEWS",       icon=":material/newspaper:"),
+    #st.Page("pages/7_🧠agent.py",             title="AGENT",      icon=":material/chat:"),
+    #st.Page("pages/8_news.py",                title="NEWS",       icon=":material/newspaper:"),
 ])
 
 pg.run()
