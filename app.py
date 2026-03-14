@@ -222,13 +222,14 @@ h2, h3 {
 st.markdown(f"<style>{_CSS}</style>", unsafe_allow_html=True)
 
 pg = st.navigation([
-    st.Page("pages/1_market_overview.py", title="OVERVIEW"),
-    st.Page("pages/2_asset_explorer.py",  title="EXPLORER"),
-    st.Page("pages/3_compare.py",         title="COMPARE"),
-    st.Page("pages/4_rates.py",           title="RATES"),
-    st.Page("pages/5_shortvol.py",        title="SHORTVOL"),
-    st.Page("pages/6_residual_momentum.py", title="RES. MOMENTUM"),
-    st.Page("pages/7_🧠agent.py", title="AGENT"),
+    st.Page("pages/1_market_overview.py",     title="OVERVIEW",   icon=":material/donut_large:"),
+    st.Page("pages/2_asset_explorer.py",      title="EXPLORER",   icon=":material/search:"),
+    st.Page("pages/3_compare.py",             title="COMPARE",    icon=":material/compare_arrows:"),
+    st.Page("pages/4_rates.py",               title="RATES",      icon=":material/show_chart:"),
+    st.Page("pages/5_shortvol.py",            title="SHORT VOL",  icon=":material/bolt:"),
+    st.Page("pages/6_residual_momentum.py",   title="MOMENTUM",   icon=":material/rotate_right:"),
+    st.Page("pages/7_🧠agent.py",             title="AGENT",      icon=":material/chat:"),
+    st.Page("pages/8_news.py",                title="NEWS",       icon=":material/newspaper:"),
 ])
 
 pg.run()
